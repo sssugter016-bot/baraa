@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NEXUS — Beyond Reality</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:100%;height:100%;overflow-x:hidden;background:#03030a;color:#eef0ff;font-family:'Space Grotesk',sans-serif;cursor:none}
+  a{color:inherit;text-decoration:none}
+
+  /* ---------- Loader ---------- */
+  #loader{position:fixed;inset:0;background:#03030a;display:flex;align-items:center;justify-content:center;z-index:1000;transition:opacity .8s ease}
+  #loader.hide{opacity:0;pointer-events:none}
+  .loader-ring{width:80px;height:80px;border-radius:50%;border:1px solid rgba(255,255,255,.08);position:relative}
+  .loader-ring::before,.loader-ring::after{content:"";position:absolute;inset:-1px;border-radius:50%;border:1px solid transparent}
+  .loader-ring::before{border-top-color:#7c5cff;animation:spin 1.2s linear infinite}
+  .loader-ring::after{border-bottom-color:#22d3ee;animation:spin 1.8s linear infinite reverse}
+  .loader-text{position:absolute;bottom:14%;left:0;right:0;text-align:center;font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.4em;color:#9aa0c4;text-transform:uppercase}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ---------- Custom cursor ---------- */
+  .cursor-dot,.cursor-ring{position:fixed;top:0;left:0;pointer-events:none;z-index:999;mix-blend-mode:difference}
+  .cursor-dot{width:6px;height:6px;background:#fff;border-radius:50%;transform:translate(-50%,-50%)}
+  .cursor-ring{width:38px;height:38px;border:1px solid rgba(255,255,255,.6);border-radius:50%;transform:translate(-50%,-50%);transition:width .25s ease,height .25s ease,border-color .25s ease}
+  .cursor-ring.hover{width:64px;height:64px;border-color:#7c5cff}
+
+  /* ---------- 3D canvas ---------- */
+  #scene{position:fixed;inset:0;z-index:0}
+
+  /* ---------- Vignette + grain ---------- */
+  .vignette{position:fixed;inset:0;pointer-events:none;z-index:2;background:radial-gradient(ellipse at center,transparent 40%,rgba(0,0,0,.65) 100%)}
+  .grain{position:fixed;inset:-50%;pointer-events:none;z-index:3;opacity:.06;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");animation:g 8s steps(8) infinite}
+  @keyframes g{0%{transform:translate(0,0)}100%{transform:translate(-10%,10%)}}
+
+  /* ---------- Navigation ---------- */
+  nav.top{position:fixed;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:22px 40px;backdrop-filter:blur(18px) saturate(160%);background:linear-gradient(to bottom,rgba(5,5,15,.5),rgba(5,5,15,0));border-bottom:1px solid rgba(255,255,255,.04)}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.2em}
+  .brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,#7c5cff,#22d3ee);box-shadow:0 0 20px #7c5cff}
+  .nav-links{display:flex;gap:34px;font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:#c8cbe6}
+  .nav-links a{position:relative;transition:color .3s}
+  .nav-links a::after{content:"";position:absolute;left:0;bottom:-6px;width:0;height:1px;background:linear-gradient(90deg,#7c5cff,#22d3ee);transition:width .35s ease}
+  .nav-links a:hover{color:#fff}
+  .nav-links a:hover::after{width:100%}
+  .cta{padding:10px 20px;border:1px solid rgba(255,255,255,.15);border-radius:999px;font-size:12px;letter-spacing:.2em;text-transform:uppercase;background:rgba(255,255,255,.02);transition:all .3s}
+  .cta:hover{border-color:#7c5cff;background:rgba(124,92,255,.1);box-shadow:0 0 30px rgba(124,92,255,.35)}
+
+  /* ---------- Sections ---------- */
+  main{position:relative;z-index:5}
+  section{min-height:100vh;display:flex;align-items:center;padding:0 8vw;position:relative}
+
+  .hero h1{font-size:clamp(48px,9vw,148px);font-weight:300;line-height:.95;letter-spacing:-.04em;margin-bottom:30px}
+  .hero h1 .grad{background:linear-gradient(135deg,#fff 0%,#7c5cff 45%,#22d3ee 100%);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:500;font-style:italic}
+  .hero p{max-width:560px;color:#aab0d0;font-size:18px;line-height:1.6;margin-bottom:40px}
+  .hero .meta{display:flex;gap:30px;font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.2em;color:#5d6394;text-transform:uppercase}
+  .hero .meta div{padding:12px 0;border-top:1px solid rgba(255,255,255,.08);min-width:160px}
+  .hero .meta strong{display:block;color:#eef0ff;font-weight:500;font-size:14px;margin-top:6px}
+
+  .scroll-cue{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.3em;color:#9aa0c4;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:14px}
+  .scroll-cue::after{content:"";width:1px;height:60px;background:linear-gradient(to bottom,rgba(255,255,255,.5),transparent);animation:drop 2s ease-in-out infinite}
+  @keyframes drop{0%,100%{transform:scaleY(.3);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}}
+
+  /* Section 2 - Features grid */
+  .features{flex-direction:column;justify-content:center;gap:80px;padding-top:140px;padding-bottom:140px}
+  .section-label{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.4em;color:#7c5cff;text-transform:uppercase;display:flex;align-items:center;gap:14px}
+  .section-label::before{content:"";width:30px;height:1px;background:#7c5cff}
+  .features h2{font-size:clamp(32px,5vw,72px);font-weight:300;letter-spacing:-.03em;max-width:900px;line-height:1.05}
+  .features h2 em{font-style:italic;color:#22d3ee;font-weight:400}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;width:100%}
+  .card{padding:32px;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:linear-gradient(135deg,rgba(255,255,255,.03),rgba(255,255,255,.01));backdrop-filter:blur(10px);transition:all .5s cubic-bezier(.2,.9,.3,1);position:relative;overflow:hidden}
+  .card::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at var(--mx,50%) var(--my,50%),rgba(124,92,255,.18),transparent 50%);opacity:0;transition:opacity .4s}
+  .card:hover{transform:translateY(-6px);border-color:rgba(124,92,255,.4)}
+  .card:hover::before{opacity:1}
+  .card .num{font-family:'JetBrains Mono',monospace;font-size:11px;color:#5d6394;letter-spacing:.3em}
+  .card h3{font-size:22px;font-weight:500;margin:20px 0 12px;letter-spacing:-.01em}
+  .card p{color:#9aa0c4;font-size:14px;line-height:1.65}
+  .card .icon{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#7c5cff,#22d3ee);display:flex;align-items:center;justify-content:center;color:#03030a;font-weight:700;margin-top:24px;font-family:'JetBrains Mono',monospace}
+
+  /* Section 3 - manifesto */
+  .manifesto{flex-direction:column;justify-content:center;text-align:center;gap:30px}
+  .manifesto blockquote{font-size:clamp(28px,4.5vw,60px);font-weight:300;line-height:1.2;letter-spacing:-.02em;max-width:1100px}
+  .manifesto blockquote span{color:#7c5cff;font-style:italic}
+  .manifesto cite{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.3em;color:#9aa0c4;text-transform:uppercase;font-style:normal}
+
+  /* Section 4 - footer/contact */
+  .contact{flex-direction:column;justify-content:space-between;padding-top:120px;padding-bottom:50px;gap:80px}
+  .contact-top{display:grid;grid-template-columns:1fr 1fr;gap:60px;width:100%;align-items:end}
+  .contact h2{font-size:clamp(40px,7vw,108px);font-weight:300;line-height:1;letter-spacing:-.04em}
+  .contact h2 em{font-style:italic;background:linear-gradient(135deg,#7c5cff,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .contact-info{display:flex;flex-direction:column;gap:18px;color:#9aa0c4;font-size:14px}
+  .contact-info a{display:inline-flex;align-items:center;gap:10px;padding:14px 0;border-bottom:1px solid rgba(255,255,255,.07);transition:all .3s}
+  .contact-info a:hover{color:#22d3ee;border-color:#22d3ee;padding-left:8px}
+  footer{display:flex;justify-content:space-between;width:100%;padding-top:30px;border-top:1px solid rgba(255,255,255,.06);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.25em;color:#5d6394;text-transform:uppercase}
+
+  /* HUD */
+  .hud{position:fixed;z-index:6;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.3em;color:#5d6394;text-transform:uppercase;pointer-events:none}
+  .hud.tl{top:96px;left:40px}
+  .hud.bl{bottom:24px;left:40px}
+  .hud.br{bottom:24px;right:40px;text-align:right}
+  .hud .live{color:#22d3ee}
+  .hud .live::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#22d3ee;margin-right:8px;animation:blink 1.4s infinite}
+  @keyframes blink{50%{opacity:.3}}
+
+  @media (max-width:760px){
+    nav.top{padding:18px 22px}
+    .nav-links{display:none}
+    section{padding:0 6vw}
+    .hud.tl,.hud.bl{left:22px}
+    .hud.br{right:22px}
+    .contact-top{grid-template-columns:1fr}
+    .hero .meta{flex-wrap:wrap;gap:16px}
+  }
+</style>
+</head>
+<body>
+
+<div id="loader">
+  <div class="loader-ring"></div>
+  <div class="loader-text">Initializing&nbsp;Reality</div>
+</div>
+
+<div class="cursor-ring"></div>
+<div class="cursor-dot"></div>
+
+<canvas id="scene"></canvas>
+<div class="vignette"></div>
+<div class="grain"></div>
+
+<nav class="top">
+  <div class="brand"><span class="dot"></span><span>NEXUS</span></div>
+  <div class="nav-links">
+    <a href="#hero">Index</a>
+    <a href="#features">System</a>
+    <a href="#manifesto">Vision</a>
+    <a href="#contact">Connect</a>
+  </div>
+  <a href="#contact" class="cta">Enter</a>
+</nav>
+
+<div class="hud tl">SECTOR / 07-A · LAT 34.05 · LON -118.24</div>
+<div class="hud bl"><span class="live">Live</span> · WebGL Stream</div>
+<div class="hud br">FPS <span id="fps">60</span> · v2.4.1</div>
+
+<main>
+  <section class="hero" id="hero">
+    <div>
+      <div class="section-label">// Beyond Reality</div>
+      <h1 style="margin-top:24px">We build<br><span class="grad">impossible</span> worlds</h1>
+      <p>NEXUS is a creative engineering studio crafting immersive 3D experiences at the intersection of code, design, and physics. Real-time. Reactive. Rendered in your browser.</p>
+      <div class="meta">
+        <div>Founded<strong>2024 · Berlin</strong></div>
+        <div>Discipline<strong>WebGL · Shaders</strong></div>
+        <div>Status<strong>Accepting briefs</strong></div>
+      </div>
+    </div>
+    <div class="scroll-cue">Scroll</div>
+  </section>
+
+  <section class="features" id="features">
+    <div>
+      <div class="section-label">// 01 — Capabilities</div>
+      <h2 style="margin-top:20px">A complete pipeline for <em>real-time</em> visuals — from concept to compiled shader.</h2>
+    </div>
+    <div class="grid">
+      <div class="card"><div class="num">001</div><h3>Custom GLSL</h3><p>Hand-crafted vertex and fragment shaders. Noise fields, fresnel, subsurface scattering — every pixel is intentional.</p><div class="icon">/&gt;</div></div>
+      <div class="card"><div class="num">002</div><h3>Procedural Worlds</h3><p>Infinite, parametric environments generated on the fly. No two visitors see the same scene.</p><div class="icon">∞</div></div>
+      <div class="card"><div class="num">003</div><h3>Physics &amp; Sim</h3><p>GPU-accelerated particles, fluid dynamics, soft-body — running at 60fps on a phone.</p><div class="icon">~</div></div>
+      <div class="card"><div class="num">004</div><h3>Post Processing</h3><p>Bloom, depth-of-field, chromatic aberration. Cinema-grade compositing in the browser.</p><div class="icon">◎</div></div>
+      <div class="card"><div class="num">005</div><h3>Sound Reactive</h3><p>Audio-driven geometry. Scenes that breathe, pulse, and respond to the music.</p><div class="icon">))</div></div>
+      <div class="card"><div class="num">006</div><h3>Production Ready</h3><p>Optimised, tested, documented. Ships to staging in days, not months.</p><div class="icon">✓</div></div>
+    </div>
+  </section>
+
+  <section class="manifesto" id="manifesto">
+    <div class="section-label" style="justify-content:center">// 02 — Manifesto</div>
+    <blockquote>The web doesn't have to be <span>flat</span>. Every site is a stage, every pixel a particle, every interaction a physical event waiting to happen.</blockquote>
+    <cite>— NEXUS / Founding Note</cite>
+  </section>
+
+  <section class="contact" id="contact">
+    <div>
+      <div class="section-label">// 03 — Connect</div>
+      <div class="contact-top" style="margin-top:30px">
+        <h2>Let's build something <em>impossible.</em></h2>
+        <div class="contact-info">
+          <a href="mailto:hello@nexus.studio">→ hello@nexus.studio</a>
+          <a href="#">→ Schedule a call</a>
+          <a href="#">→ View case studies</a>
+          <a href="#">→ Read the journal</a>
+        </div>
+      </div>
+    </div>
+    <footer>
+      <div>© 2026 NEXUS Studio</div>
+      <div>Made with ❤ &amp; GLSL</div>
+      <div>All systems nominal</div>
+    </footer>
+  </section>
+</main>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }     from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass }from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass }     from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass }     from 'three/addons/postprocessing/OutputPass.js';
+
+/* ---------- Renderer / Scene / Camera ---------- */
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x03030a, 0.04);
+
+const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 200);
+camera.position.set(0, 0, 7);
+
+/* ---------- Lights ---------- */
+scene.add(new THREE.AmbientLight(0x404060, 0.6));
+const key = new THREE.PointLight(0x7c5cff, 4, 30); key.position.set(5,3,5); scene.add(key);
+const fill= new THREE.PointLight(0x22d3ee, 3, 30); fill.position.set(-6,-2,3); scene.add(fill);
+
+/* ---------- Hero Orb (custom shader) ---------- */
+const orbGeo = new THREE.IcosahedronGeometry(1.6, 64);
+const orbUniforms = {
+  uTime:   { value: 0 },
+  uMouse:  { value: new THREE.Vector2() },
+  uDistort:{ value: 0.45 },
+  uColorA: { value: new THREE.Color('#7c5cff') },
+  uColorB: { value: new THREE.Color('#22d3ee') },
+  uColorC: { value: new THREE.Color('#ff4d8d') }
+};
+const orbMat = new THREE.ShaderMaterial({
+  uniforms: orbUniforms,
+  vertexShader: /* glsl */`
+    uniform float uTime;
+    uniform float uDistort;
+    uniform vec2  uMouse;
+    varying vec3 vNormal;
+    varying vec3 vPos;
+    varying float vNoise;
+
+    // 3D simplex noise (Ashima)
+    vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
+    vec4 mod289(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}
+    vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
+    vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}
+    float snoise(vec3 v){
+      const vec2 C=vec2(1.0/6.0,1.0/3.0); const vec4 D=vec4(0.0,0.5,1.0,2.0);
+      vec3 i=floor(v+dot(v,C.yyy)); vec3 x0=v-i+dot(i,C.xxx);
+      vec3 g=step(x0.yzx,x0.xyz); vec3 l=1.0-g;
+      vec3 i1=min(g.xyz,l.zxy); vec3 i2=max(g.xyz,l.zxy);
+      vec3 x1=x0-i1+C.xxx; vec3 x2=x0-i2+C.yyy; vec3 x3=x0-D.yyy;
+      i=mod289(i);
+      vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))
+            +i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
+      float n_=0.142857142857; vec3 ns=n_*D.wyz-D.xzx;
+      vec4 j=p-49.0*floor(p*ns.z*ns.z); vec4 x_=floor(j*ns.z);
+      vec4 y_=floor(j-7.0*x_); vec4 x=x_*ns.x+ns.yyyy; vec4 y=y_*ns.x+ns.yyyy;
+      vec4 h=1.0-abs(x)-abs(y); vec4 b0=vec4(x.xy,y.xy); vec4 b1=vec4(x.zw,y.zw);
+      vec4 s0=floor(b0)*2.0+1.0; vec4 s1=floor(b1)*2.0+1.0; vec4 sh=-step(h,vec4(0.0));
+      vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy; vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+      vec3 p0=vec3(a0.xy,h.x); vec3 p1=vec3(a0.zw,h.y); vec3 p2=vec3(a1.xy,h.z); vec3 p3=vec3(a1.zw,h.w);
+      vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+      p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+      vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0);
+      m=m*m; return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+    }
+
+    void main(){
+      vec3 p = position;
+      float n = snoise(p*1.4 + vec3(uTime*0.35));
+      float n2= snoise(p*3.2 + vec3(uTime*0.6));
+      float displace = n*uDistort + n2*0.12;
+      // mouse-driven bulge
+      float mInfluence = smoothstep(1.0, 0.0, length(p.xy - uMouse*1.6));
+      displace += mInfluence*0.25;
+      vec3 newPos = p + normal*displace;
+      vNoise = n;
+      vNormal = normalize(normalMatrix*normal);
+      vPos = newPos;
+      gl_Position = projectionMatrix*modelViewMatrix*vec4(newPos,1.0);
+    }
+  `,
+  fragmentShader: /* glsl */`
+    uniform float uTime;
+    uniform vec3 uColorA;
+    uniform vec3 uColorB;
+    uniform vec3 uColorC;
+    varying vec3 vNormal;
+    varying vec3 vPos;
+    varying float vNoise;
+    void main(){
+      // fresnel
+      vec3 viewDir = normalize(cameraPosition - vPos);
+      float fres = pow(1.0 - max(dot(viewDir, vNormal),0.0), 2.4);
+      // iridescent gradient driven by noise + fresnel
+      float t = vNoise*0.5+0.5;
+      vec3 col = mix(uColorA, uColorB, t);
+      col = mix(col, uColorC, fres*0.6);
+      col += fres*vec3(0.4,0.5,1.0);
+      // subtle inner glow
+      col += 0.08*sin(vec3(0.0,2.0,4.0)+uTime+vNoise*6.0);
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `
+});
+const orb = new THREE.Mesh(orbGeo, orbMat);
+orb.position.set(2.4, 0.3, 0);
+scene.add(orb);
+
+// inner wireframe core
+const coreGeo = new THREE.IcosahedronGeometry(1.0, 1);
+const coreMat = new THREE.MeshBasicMaterial({ color:0xffffff, wireframe:true, transparent:true, opacity:0.18 });
+const core = new THREE.Mesh(coreGeo, coreMat);
+orb.add(core);
+
+/* ---------- Galaxy particles (custom shader) ---------- */
+const PARTICLES = 9000;
+const positions = new Float32Array(PARTICLES*3);
+const colors    = new Float32Array(PARTICLES*3);
+const scales    = new Float32Array(PARTICLES);
+const cA = new THREE.Color('#7c5cff');
+const cB = new THREE.Color('#22d3ee');
+const cC = new THREE.Color('#ffffff');
+for(let i=0;i<PARTICLES;i++){
+  // spiral galaxy distribution
+  const r = Math.pow(Math.random(),0.6)*22;
+  const branches = 4;
+  const branch = (i % branches) * (Math.PI*2/branches);
+  const spin = r*0.35;
+  const rand = ()=> (Math.random()-0.5)*Math.pow(Math.random(),3)*r*0.4;
+  const x = Math.cos(branch+spin)*r + rand();
+  const y = rand()*0.4;
+  const z = Math.sin(branch+spin)*r + rand();
+  positions[i*3]=x; positions[i*3+1]=y; positions[i*3+2]=z;
+  const mix = r/22;
+  const col = cA.clone().lerp(cB, mix).lerp(cC, Math.random()*0.15);
+  colors[i*3]=col.r; colors[i*3+1]=col.g; colors[i*3+2]=col.b;
+  scales[i] = Math.random();
+}
+const galaxyGeo = new THREE.BufferGeometry();
+galaxyGeo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+galaxyGeo.setAttribute('color',    new THREE.BufferAttribute(colors,3));
+galaxyGeo.setAttribute('aScale',   new THREE.BufferAttribute(scales,1));
+const galaxyMat = new THREE.ShaderMaterial({
+  transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
+  uniforms:{ uTime:{value:0}, uSize:{value: renderer.getPixelRatio()*30 } },
+  vertexShader:`
+    uniform float uTime; uniform float uSize;
+    attribute float aScale; varying vec3 vColor;
+    void main(){
+      vColor = color;
+      vec4 mv = modelViewMatrix*vec4(position,1.0);
+      // gentle vertical wave
+      mv.y += sin(uTime*0.6 + position.x*0.2)*0.15;
+      gl_Position = projectionMatrix*mv;
+      gl_PointSize = uSize * aScale * (1.0/-mv.z);
+    }
+  `,
+  fragmentShader:`
+    varying vec3 vColor;
+    void main(){
+      vec2 uv = gl_PointCoord-0.5;
+      float d = length(uv);
+      float a = smoothstep(0.5, 0.0, d);
+      a *= smoothstep(0.5, 0.4, 0.5-d)*1.5+0.2;
+      gl_FragColor = vec4(vColor, a);
+      if(a<0.02) discard;
+    }
+  `,
+  vertexColors:true
+});
+const galaxy = new THREE.Points(galaxyGeo, galaxyMat);
+galaxy.position.y = -2;
+scene.add(galaxy);
+
+/* ---------- Distant stars ---------- */
+const starsGeo = new THREE.BufferGeometry();
+const starsCount = 2500;
+const sPos = new Float32Array(starsCount*3);
+for(let i=0;i<starsCount;i++){
+  sPos[i*3]   = (Math.random()-0.5)*180;
+  sPos[i*3+1] = (Math.random()-0.5)*180;
+  sPos[i*3+2] = (Math.random()-0.5)*180;
+}
+starsGeo.setAttribute('position', new THREE.BufferAttribute(sPos,3));
+const starsMat = new THREE.PointsMaterial({ color:0xffffff, size:0.05, transparent:true, opacity:0.6, depthWrite:false });
+scene.add(new THREE.Points(starsGeo, starsMat));
+
+/* ---------- Floating geometric debris ---------- */
+const debris = new THREE.Group();
+const shapes = [
+  new THREE.TorusGeometry(0.35,0.08,16,64),
+  new THREE.OctahedronGeometry(0.3,0),
+  new THREE.TetrahedronGeometry(0.32,0),
+  new THREE.BoxGeometry(0.4,0.4,0.4)
+];
+for(let i=0;i<14;i++){
+  const g = shapes[i%shapes.length];
+  const m = new THREE.MeshStandardMaterial({
+    color: i%2 ? 0x7c5cff : 0x22d3ee,
+    metalness:0.7, roughness:0.25, emissive: i%2?0x2a1a6e:0x0a4a55, emissiveIntensity:0.5,
+    wireframe: i%3===0
+  });
+  const mesh = new THREE.Mesh(g,m);
+  const r = 4 + Math.random()*5;
+  const a = Math.random()*Math.PI*2;
+  mesh.position.set(Math.cos(a)*r, (Math.random()-0.5)*4, Math.sin(a)*r - 2);
+  mesh.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+  mesh.userData.spin = new THREE.Vector3((Math.random()-0.5)*0.01,(Math.random()-0.5)*0.01,(Math.random()-0.5)*0.01);
+  mesh.userData.float = Math.random()*Math.PI*2;
+  debris.add(mesh);
+}
+scene.add(debris);
+
+/* ---------- Post-processing (Bloom + chromatic aberration) ---------- */
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight), 0.85, 0.75, 0.18);
+composer.addPass(bloom);
+
+const ChromaticPass = {
+  uniforms:{ tDiffuse:{value:null}, uAmount:{value:0.0015}, uTime:{value:0} },
+  vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+  fragmentShader:`
+    uniform sampler2D tDiffuse; uniform float uAmount; uniform float uTime; varying vec2 vUv;
+    void main(){
+      vec2 dir = vUv-0.5;
+      float d = length(dir);
+      vec2 off = normalize(dir)*uAmount*(0.5+d*2.0);
+      float r = texture2D(tDiffuse, vUv - off).r;
+      float g = texture2D(tDiffuse, vUv).g;
+      float b = texture2D(tDiffuse, vUv + off).b;
+      // subtle scanline / vignette
+      float v = smoothstep(1.2, 0.3, d);
+      gl_FragColor = vec4(vec3(r,g,b)*v, 1.0);
+    }
+  `
+};
+composer.addPass(new ShaderPass(ChromaticPass));
+composer.addPass(new OutputPass());
+
+/* ---------- Interaction ---------- */
+const mouse = new THREE.Vector2();
+const target = new THREE.Vector2();
+addEventListener('mousemove', e => {
+  target.x = (e.clientX/innerWidth)*2 - 1;
+  target.y = -((e.clientY/innerHeight)*2 - 1);
+});
+
+// custom cursor
+const cDot = document.querySelector('.cursor-dot');
+const cRing= document.querySelector('.cursor-ring');
+let cx=0, cy=0, rx=0, ry=0;
+addEventListener('mousemove', e=>{ cx=e.clientX; cy=e.clientY; cDot.style.transform=`translate(${cx}px,${cy}px) translate(-50%,-50%)`; });
+document.querySelectorAll('a, .card, .cta').forEach(el=>{
+  el.addEventListener('mouseenter',()=>cRing.classList.add('hover'));
+  el.addEventListener('mouseleave',()=>cRing.classList.remove('hover'));
+});
+
+// 3D card spotlight effect
+document.querySelectorAll('.card').forEach(card=>{
+  card.addEventListener('mousemove', e=>{
+    const r = card.getBoundingClientRect();
+    card.style.setProperty('--mx', ((e.clientX-r.left)/r.width*100)+'%');
+    card.style.setProperty('--my', ((e.clientY-r.top)/r.height*100)+'%');
+  });
+});
+
+// scroll
+let scrollY = 0;
+addEventListener('scroll', ()=>{ scrollY = window.scrollY; });
+
+/* ---------- Resize ---------- */
+addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
+  bloom.setSize(innerWidth, innerHeight);
+});
+
+/* ---------- Loop ---------- */
+const clock = new THREE.Clock();
+let frame=0, fps=60, lastT=performance.now();
+const fpsEl = document.getElementById('fps');
+
+function tick(){
+  const t = clock.getElapsedTime();
+
+  // smooth mouse
+  mouse.x += (target.x-mouse.x)*0.06;
+  mouse.y += (target.y-mouse.y)*0.06;
+
+  // smooth cursor ring
+  rx += (cx-rx)*0.18; ry += (cy-ry)*0.18;
+  cRing.style.transform=`translate(${rx}px,${ry}px) translate(-50%,-50%)`;
+
+  // orb shader
+  orbUniforms.uTime.value = t;
+  orbUniforms.uMouse.value.set(mouse.x*1.5, mouse.y*1.5);
+  orb.rotation.y += 0.002;
+  orb.rotation.x = mouse.y*0.3;
+  core.rotation.x -= 0.004; core.rotation.y -= 0.006;
+
+  // galaxy
+  galaxy.rotation.y = t*0.04;
+  galaxyMat.uniforms.uTime.value = t;
+
+  // debris
+  debris.children.forEach((m,i)=>{
+    m.rotation.x += m.userData.spin.x;
+    m.rotation.y += m.userData.spin.y;
+    m.rotation.z += m.userData.spin.z;
+    m.position.y += Math.sin(t+m.userData.float)*0.003;
+  });
+  debris.rotation.y = t*0.03;
+
+  // scroll-driven camera
+  const sp = scrollY / (document.body.scrollHeight - innerHeight);
+  camera.position.x = mouse.x*0.6;
+  camera.position.y = -sp*4 + mouse.y*0.4;
+  camera.position.z = 7 - sp*2;
+  camera.lookAt(0, -sp*2, 0);
+
+  // orb travels with scroll
+  orb.position.x = 2.4 - sp*5;
+  orb.position.y = 0.3 - sp*1.2;
+  orbUniforms.uDistort.value = 0.45 + Math.sin(t*0.7)*0.12 + sp*0.4;
+
+  composer.render();
+
+  // fps
+  frame++;
+  if(frame%30===0){
+    const now = performance.now();
+    fps = Math.round(30000/(now-lastT));
+    lastT = now;
+    fpsEl.textContent = fps;
+  }
+  requestAnimationFrame(tick);
+}
+
+// hide loader once first frame is ready
+requestAnimationFrame(()=>{
+  tick();
+  setTimeout(()=>document.getElementById('loader').classList.add('hide'), 600);
+});
+</script>
+</body>
+</html>
