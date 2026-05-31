@@ -698,7 +698,34 @@ function makePistol(){
 
 /* ---------------- Player ---------------- */
 const player = new Character({ palette:{skin:0xf2c4a0,shirt:0xe54b3c,pants:0x1a1a22,hair:0x1a1a1a,shoes:0x111} });
-player.root.position.set(2, 0, 2);
+
+// Find a safe spawn point — must be on a road, not inside a building.
+function findSafeSpawn(){
+  // Prefer a road intersection near the city center.
+  // Grid intersections lie at x = -CITY_HALF + i*BLOCK_SIZE.
+  // Try center-out so we end up in a sensible spot.
+  const order = [];
+  for(let i=0;i<=CITY_BLOCKS;i++) for(let j=0;j<=CITY_BLOCKS;j++){
+    const x = -CITY_HALF + i*BLOCK_SIZE;
+    const z = -CITY_HALF + j*BLOCK_SIZE;
+    order.push([x, z, x*x+z*z]);
+  }
+  order.sort((a,b)=>a[2]-b[2]);
+  for(const [x,_z,_d] of order){
+    const z = _z;
+    if(!collidesPoint(x, z, 1.5)) return new THREE.Vector3(x, 0, z);
+  }
+  // Fallback: search outward in a spiral
+  for(let r=0;r<200;r+=2){
+    for(let a=0;a<TWO_PI;a+=0.3){
+      const x = Math.cos(a)*r, z = Math.sin(a)*r;
+      if(!collidesPoint(x, z, 1.5)) return new THREE.Vector3(x, 0, z);
+    }
+  }
+  return new THREE.Vector3(0,0,0);
+}
+const SPAWN = findSafeSpawn();
+player.root.position.copy(SPAWN);
 scene.add(player.root);
 
 player.weapons = {
@@ -1143,8 +1170,10 @@ document.getElementById('respawn').addEventListener('click', ()=>{
   player.armor = 0;
   player.wanted = 0;
   player.cash = Math.floor(player.cash * 0.8);
-  player.root.position.set(0,0,0);
+  const sp = findSafeSpawn();
+  player.root.position.copy(sp);
   player.pelvis.rotation.set(0,0,0);
+  player.heading = 0;
   player.state = 'idle';
   gameoverEl.classList.remove('show');
   // remove cops
